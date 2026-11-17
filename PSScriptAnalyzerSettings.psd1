@@ -1,6 +1,6 @@
-﻿# PSScriptAnalyzer settings for Disk-NAS-Health.ps1.
+﻿# PSScriptAnalyzer settings for Disk-and-NAS-Health.ps1.
 # Build.cmd runs it. To run it by hand:
-#   Invoke-ScriptAnalyzer -Path .\src\Disk-NAS-Health.ps1 -Settings .\PSScriptAnalyzerSettings.psd1
+#   Invoke-ScriptAnalyzer -Path .\src\Disk-and-NAS-Health.ps1 -Settings .\PSScriptAnalyzerSettings.psd1
 @{
     Severity     = @('Error', 'Warning')
     ExcludeRules = @(

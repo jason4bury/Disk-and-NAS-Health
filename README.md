@@ -112,7 +112,7 @@ Change everything in **Settings**:
 | Check again every | 15 minutes | 0 checks only when you press Refresh or F5. |
 | Theme | Auto | Auto follows Windows' app mode; or Light or Dark. |
 
-Disk and NAS Health connects with `ssh -o BatchMode=yes` (key login only, never a password prompt) and sends one read-only script to `sh` on the NAS. You can read exactly what it runs in `Disk-NAS-Health.ps1` (`$script:NasReportScript`).
+Disk and NAS Health connects with `ssh -o BatchMode=yes` (key login only, never a password prompt) and sends one read-only script to `sh` on the NAS. You can read exactly what it runs in `Disk-and-NAS-Health.ps1` (`$script:NasReportScript`).
 
 ## 📝 Changelog
 

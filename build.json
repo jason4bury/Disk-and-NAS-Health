@@ -1,13 +1,13 @@
 {
   "AppName": "Disk and NAS Health",
-  "EntryScript": "src\\Disk-NAS-Health.ps1",
+  "EntryScript": "src\\Disk-and-NAS-Health.ps1",
   "Icon": "assets\\Disk-NAS-Health.ico",
   "Side": "Home",
   "Description": "PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC and a Synology NAS",
   "RequireAdmin": false,
   "Release": {
     "Files": {
-      "Disk-NAS-Health.ps1": "src\\Disk-NAS-Health.ps1",
+      "Disk-and-NAS-Health.ps1": "src\\Disk-and-NAS-Health.ps1",
       "New-DiskNASHealthShortcut.ps1": "src\\New-DiskNASHealthShortcut.ps1",
       "Disk and NAS Health.cmd": "release\\Disk and NAS Health.cmd",
       "assets\\Disk-NAS-Health.ico": "assets\\Disk-NAS-Health.ico",

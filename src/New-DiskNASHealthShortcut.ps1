@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Makes (or refreshes) the Disk and NAS Health shortcut, which starts Disk-NAS-Health.ps1 without a console window.
+    Makes (or refreshes) the Disk and NAS Health shortcut, which starts Disk-and-NAS-Health.ps1 without a console window.
 
 .DESCRIPTION
     Disk and NAS Health has no exe: it's a PowerShell script. This makes a Windows shortcut (Disk and NAS Health.lnk)
@@ -8,7 +8,7 @@
     sets for itself, so the taskbar button shows the tool's icon and a pinned button starts the tool.
 
     On Windows 11 the shortcut runs
-        conhost.exe --headless powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "...\Disk-NAS-Health.ps1"
+        conhost.exe --headless powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "...\Disk-and-NAS-Health.ps1"
     which opens no console window at all. On older Windows it runs powershell.exe -WindowStyle Hidden
     from a minimised shortcut instead (a console may flash for a moment).
 
@@ -43,7 +43,7 @@ $ErrorActionPreference = 'Stop'
 # powershell.exe -File (as the .cmd does), so the default script path is worked out here instead.
 if (-not $ScriptPath) {
     $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
-    $ScriptPath = Join-Path $here 'Disk-NAS-Health.ps1'
+    $ScriptPath = Join-Path $here 'Disk-and-NAS-Health.ps1'
 }
 $ScriptPath = (Resolve-Path -LiteralPath $ScriptPath).ProviderPath
 $folder     = Split-Path -Parent $ScriptPath

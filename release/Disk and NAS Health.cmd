@@ -8,7 +8,7 @@ rem If Disk and NAS Health doesn't open, run   "Disk and NAS Health.cmd" debug  
 setlocal
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if /i "%~1"=="debug" (
-    "%PS%" -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0Disk-NAS-Health.ps1"
+    "%PS%" -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0Disk-and-NAS-Health.ps1"
     pause
     exit /b
 )
