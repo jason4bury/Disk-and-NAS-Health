@@ -38,7 +38,7 @@ $script:AppName     = 'Disk and NAS Health'
 $script:AppVersion  = '1.00'
 $script:Description = 'PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC and a Synology NAS'
 $script:Copyright   = 'Copyright (c) 2026 Jason Rhodes'
-$script:RepoUrl     = 'https://github.com/jason4bury/Disk-NAS-Health'
+$script:RepoUrl     = 'https://github.com/jason4bury/Disk-and-NAS-Health'
 $script:IsPrivate   = $false   # private tools keep their data in <project>\Data, inside the vault
 $script:AppId       = 'jason4bury.Disk-NAS-Health'   # taskbar ID; the shortcut made by New-DiskNASHealthShortcut.ps1 uses the same one
 
