@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 `<major>.<minor>` and a two-digit minor (v1.00, v1.01 ... v1.10) to match the release folder names.
 
 ## [Unreleased]
+
+## [1.01] - 2026-11-17
 ### Changed
 - The main script is now `Disk-and-NAS-Health.ps1`, matching the folder name.
 - The repo and folder are now `Disk-and-NAS-Health`, matching the AppName. Old GitHub links redirect.

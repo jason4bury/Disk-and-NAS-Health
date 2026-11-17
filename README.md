@@ -6,7 +6,7 @@
 
 Free space, drive health and the biggest folders, for this PC and your NAS, in one window.
 
-![Version](https://img.shields.io/badge/version-v1.00-blue) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6) ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE) ![Licence](https://img.shields.io/badge/licence-MIT-green) ![Last commit](https://img.shields.io/github/last-commit/jason4bury/Disk-and-NAS-Health)
+![Version](https://img.shields.io/badge/version-v1.01-blue) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6) ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE) ![Licence](https://img.shields.io/badge/licence-MIT-green) ![Last commit](https://img.shields.io/github/last-commit/jason4bury/Disk-and-NAS-Health)
 
 ## ✨ Features
 
@@ -42,9 +42,9 @@ Disk and NAS Health is a PowerShell/WPF tool that checks every drive on your PC 
 
 ## 📦 Installation
 
-1. Download `Disk-and-NAS-Health-v1.00.zip` from the [latest release](../../releases/latest).
-2. Right-click the zip, choose **Properties**, tick **Unblock** and click OK, *before* extracting it. (Or, after extracting, run `Get-ChildItem -Recurse 'Disk and NAS Health v1.00' | Unblock-File` in PowerShell.) Files from the internet carry Windows' Mark of the Web, which makes Windows warn about or block scripts.
-3. Extract it anywhere. You get a `Disk and NAS Health v1.00` folder.
+1. Download `Disk-and-NAS-Health-v1.01.zip` from the [latest release](../../releases/latest).
+2. Right-click the zip, choose **Properties**, tick **Unblock** and click OK, *before* extracting it. (Or, after extracting, run `Get-ChildItem -Recurse 'Disk and NAS Health v1.01' | Unblock-File` in PowerShell.) Files from the internet carry Windows' Mark of the Web, which makes Windows warn about or block scripts.
+3. Extract it anywhere. You get a `Disk and NAS Health v1.01` folder.
 4. Double-click **Disk and NAS Health.cmd** in that folder. It makes a **Disk and NAS Health** shortcut in the folder and in the Start menu, then starts it.
 
 From then on, start it from the shortcut or the Start menu, and pin it to the taskbar if you like: it starts without a console window and shows its own icon. For a new version, extract it and run its .cmd once; the Start menu shortcut then points at the new folder. Settings are kept in `%APPDATA%\Disk and NAS Health`, so they carry over.
