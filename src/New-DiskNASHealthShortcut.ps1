@@ -154,7 +154,7 @@ foreach ($p in $ShortcutPath) {
     $dir = Split-Path -Parent $p
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     [HomeToolShortcut.Maker]::Save($p, $target, $arguments, $folder, [string]$IconPath,
-        'Disk and NAS Health: PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC and a Synology NAS', $showCmd, $AppId)
+        'Disk and NAS Health: PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC, a Synology NAS and other drives', $showCmd, $AppId)
     Write-Output "Shortcut: $p ($how)"
     $made += $p
 }

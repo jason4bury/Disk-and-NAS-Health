@@ -3,7 +3,7 @@
   "EntryScript": "src\\Disk-and-NAS-Health.ps1",
   "Icon": "assets\\Disk-NAS-Health.ico",
   "Side": "Home",
-  "Description": "PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC and a Synology NAS",
+  "Description": "PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC, a Synology NAS and other drives",
   "RequireAdmin": false,
   "Release": {
     "Files": {

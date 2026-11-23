@@ -1,9 +1,9 @@
 ﻿<#
 .SYNOPSIS
-    Disk and NAS Health - free space, drive health and the biggest folders, for this PC and your NAS.
+    Disk and NAS Health - free space, drive health and the biggest folders, for this PC, your NAS and other drives.
 
 .DESCRIPTION
-    PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC and a Synology NAS.
+    PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC, a Synology NAS and other drives.
 
     Read only: it never writes to, formats, tests or changes any disk, here or on the NAS.
       - This PC: drives from Win32_LogicalDisk, physical disks from Get-PhysicalDisk, and (run as
@@ -35,8 +35,8 @@ $ErrorActionPreference = 'Stop'
 # The version lives here and in CHANGELOG.md; Build.cmd stops if they disagree.
 # Two-digit minor: 1.00, 1.01 ... 1.10. The release folder is "Disk and NAS Health v<version>".
 $script:AppName     = 'Disk and NAS Health'
-$script:AppVersion  = '1.01'
-$script:Description = 'PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC and a Synology NAS'
+$script:AppVersion  = '1.02'
+$script:Description = 'PowerShell/WPF tool for checking free space, drive health and the biggest folders on a PC, a Synology NAS and other drives'
 $script:Copyright   = 'Copyright (c) 2026 Jason Rhodes'
 $script:RepoUrl     = 'https://github.com/jason4bury/Disk-and-NAS-Health'
 $script:IsPrivate   = $false   # private tools keep their data in <project>\Data, inside the vault
@@ -370,7 +370,7 @@ function Import-Machine {
 $script:Settings = Get-AppSetting
 $defaults = [ordered]@{
     WarnFreePercent = 15; CritFreePercent = 5; HddTempWarn = 50; SsdTempWarn = 70
-    RefreshMinutes = 15; Theme = 'Auto'; FolderPaths = [pscustomobject]@{}; Window = $null
+    RefreshMinutes = 15; Theme = 'Auto'; FolderPaths = [pscustomobject]@{}; Window = $null; OtherDrives = @()
 }
 foreach ($k in $defaults.Keys) {
     if ($null -eq $script:Settings.PSObject.Properties[$k]) { $script:Settings | Add-Member -NotePropertyName $k -NotePropertyValue $defaults[$k] }
@@ -380,6 +380,7 @@ if ($null -eq $script:Settings.PSObject.Properties['Machines']) {
     Save-AppSetting
 }
 $script:Settings.Machines = @($script:Settings.Machines | Where-Object { $_ -and $_.Name -and $_.Login })
+$script:Settings.OtherDrives = @($script:Settings.OtherDrives | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ })
 
 function Get-SettingNumber([string]$Name, [double]$Default) {
     $v = 0.0
@@ -608,6 +609,41 @@ function Update-Background {
         try { & $t.OnDone $out $err $t.State }
         catch { Show-Problem "Something went wrong: $($_.Exception.Message)" }
     }
+}
+
+# Other drives: this PC's mapped network drives, and shared folders on other PCs (\\PC\Share)
+# from Settings. Free space only: their disks belong to the other PC.
+$script:OtherWork = {
+    param([string[]]$Paths)
+    if (-not ('DnhSpace' -as [type])) {
+        Add-Type @"
+using System; using System.Runtime.InteropServices;
+public static class DnhSpace {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool GetDiskFreeSpaceEx(string dir, out ulong availableToCaller, out ulong total, out ulong free);
+}
+"@
+    }
+    $r = [ordered]@{ Drives = @(); Errors = @() }
+    $seen = @{}
+    try {
+        foreach ($v in @(Get-CimInstance -ClassName Win32_LogicalDisk -Filter 'DriveType = 4' -ErrorAction Stop)) {
+            $r.Drives += [pscustomobject]@{ Name = [string]$v.DeviceID; Where = [string]$v.ProviderName; Label = [string]$v.VolumeName
+                                            Size = [double]$v.Size; Free = [double]$v.FreeSpace; Mapped = $true
+                                            Error = $(if (-not $v.Size) { "Can't reach it" } else { '' }) }
+            if ($v.ProviderName) { $seen[([string]$v.ProviderName).TrimEnd('\').ToLowerInvariant()] = $true }
+        }
+    } catch { $r.Errors += "Network drives: $($_.Exception.Message)" }
+    foreach ($p in $Paths) {
+        if (-not $p -or $seen[$p.TrimEnd('\').ToLowerInvariant()]) { continue }   # already shown as a mapped drive
+        $dir = $p.TrimEnd('\') + '\'
+        $a = [uint64]0; $t = [uint64]0; $f = [uint64]0
+        $ok = [DnhSpace]::GetDiskFreeSpaceEx($dir, [ref]$a, [ref]$t, [ref]$f)
+        $why = if ($ok) { '' } else { (New-Object ComponentModel.Win32Exception ([Runtime.InteropServices.Marshal]::GetLastWin32Error())).Message }
+        $r.Drives += [pscustomobject]@{ Name = $p; Where = ''; Label = ''; Size = [double]$t; Free = [double]$a; Mapped = $false
+                                        Error = $(if ($ok) { '' } else { "Can't reach it: $why" }) }
+    }
+    [pscustomobject]$r
 }
 
 # This PC: drives, physical disks and (as administrator) their reliability counters.
@@ -1224,6 +1260,70 @@ function Show-PcHealth {
 }
 
 # ---------------------------------------------------------------------------
+#  Other drives: mapped network drives and shared folders on other PCs
+# ---------------------------------------------------------------------------
+$script:OtherResult = $null
+function Show-OtherHealth {
+    $panel = $script:Ui.PanelOther
+    $panel.Children.Clear()
+    $r = $script:OtherResult
+    $issues = New-Object Collections.Generic.List[object]
+    if (-not $r) { [void]$panel.Children.Add((New-Text 'Reading the other drives...' 14 -Brush 'Muted')); return }
+    $wrap = New-Wrap
+    # Mapped drives that are folders of one disk on the same PC (same server, same size and free space) share a card.
+    $shown = New-Object Collections.Generic.List[object]
+    foreach ($d in $r.Drives) {
+        $server = if ($d.Mapped -and $d.Where -match '^\\\\([^\\]+)') { $Matches[1] } else { '' }
+        $same = if ($server -and -not $d.Error) { @($shown | Where-Object { $_.Server -eq $server -and $_.Size -eq $d.Size -and $_.Free -eq $d.Free }) | Select-Object -First 1 } else { $null }
+        if ($same) { $same.Letters += $d.Name; continue }
+        [void]$shown.Add([pscustomobject]@{ Name = $d.Name; Where = $d.Where; Label = $d.Label; Size = $d.Size; Free = $d.Free; Mapped = $d.Mapped; Error = $d.Error; Server = $server; Letters = @($d.Name) })
+    }
+    foreach ($d in $shown) {
+        if ($d.Letters.Count -gt 1) { $d.Name = $d.Letters -join ' '; $d.Label = ''; $d.Where = "\\$($d.Server): $($d.Letters.Count) network drives on one disk" }
+        $card = New-Card 262
+        $title = if ($d.Mapped) { "$($d.Name)  $(if ($d.Label) { $d.Label } else { 'Network drive' })" } else { $d.Name }
+        $sub = if ($d.Mapped) { $d.Where } elseif ($d.Name -like '\*') { 'Shared folder' } else { 'Drive' }
+        if ($d.Error) {
+            [void]$issues.Add([pscustomobject]@{ Level = 1; Text = "$($d.Name): $($d.Error)" })
+            [void]$card.Child.Children.Add((New-CardTitle $title $sub (New-Pill 'Offline' 'Warn')))
+            [void]$card.Child.Children.Add((New-Text $d.Error 12.5 -Brush 'Muted'))
+        } else {
+            $lvl = Get-FreeLevel $d.Size $d.Free
+            $pct = if ($d.Size) { 100 * $d.Free / $d.Size } else { 0 }
+            if ($lvl -in 1, 2) { [void]$issues.Add([pscustomobject]@{ Level = $lvl; Text = ('{0} has {1} free ({2:N0}%)' -f $d.Name, (Format-Size $d.Free), $pct) }) }
+            [void]$card.Child.Children.Add((New-CardTitle $title $sub $null))
+            [void]$card.Child.Children.Add((New-Bar (100 - $pct) $script:LevelKeys[$lvl]))
+            $line = New-Object Windows.Controls.DockPanel
+            $pctText = New-Text ('{0:N0}% free' -f $pct) 12.5 -Bold -Brush $script:LevelKeys[$lvl]
+            [Windows.Controls.DockPanel]::SetDock($pctText, 'Right')
+            [void]$line.Children.Add($pctText)
+            [void]$line.Children.Add((New-Text ('{0} free of {1}' -f (Format-Size $d.Free), (Format-Size $d.Size)) 12.5 -Brush 'Muted'))
+            [void]$card.Child.Children.Add($line)
+            $card.ToolTip = "Used: $(Format-Size ($d.Size - $d.Free))"
+        }
+        [void]$wrap.Children.Add($card)
+    }
+    if ($issues.Count) { [void]$panel.Children.Add((New-Banner $issues.ToArray())) }
+    [void]$panel.Children.Add((New-Section 'Other drives' 'Mapped network drives on this PC, and the shared folders on other PCs listed in Settings. Free space only: the disks themselves belong to the other PC.'))
+    if ($wrap.Children.Count) { [void]$panel.Children.Add($wrap) }
+    else {
+        $sp = New-Object Windows.Controls.StackPanel
+        $sp.MaxWidth = 620; $sp.HorizontalAlignment = 'Left'
+        [void]$sp.Children.Add((New-Text 'No other drives yet' 16 -Bold))
+        [void]$sp.Children.Add((New-Text 'Network drives mapped on this PC show here by themselves. To add a drive on another PC, share it there and add its address in Settings, such as \\OFFICE-PC\D or \\192.168.1.20\media. It works for Windows PCs and for Linux machines sharing with Samba.' 13 -Brush 'Muted' -Margin '0,6,0,12'))
+        $bt = New-Object Windows.Controls.Button
+        $bt.Content = 'Open Settings'; $bt.HorizontalAlignment = 'Left'
+        $bt.Add_Click({ Show-Settings })
+        [void]$sp.Children.Add($bt)
+        [void]$panel.Children.Add($sp)
+    }
+    foreach ($x in $r.Errors) { [void]$panel.Children.Add((New-Text "Couldn't read $x" 12 -Brush 'Warn' -Margin '0,0,0,4')) }
+    $script:Issues['Other drives'] = $issues.ToArray()
+    Set-TabLevel $script:OtherHeader $(if ($r.Drives.Count) { Get-WorstLevel $issues.ToArray() } else { 0 })
+    Update-Summary
+}
+
+# ---------------------------------------------------------------------------
 #  NAS tabs
 # ---------------------------------------------------------------------------
 function Show-NasHealth([string]$Name) {
@@ -1464,6 +1564,14 @@ function Update-AllHealth {
         Show-PcHealth
         Set-BusyChange -1
     }
+    Set-BusyChange 1
+    Start-Background -Work $script:OtherWork -Arguments @(, [string[]]@($script:Settings.OtherDrives)) -State $null -OnDone {
+        param($out, $err, $state)
+        if ($out.Count) { $script:OtherResult = $out[0] }
+        elseif ($err) { Show-Problem "Couldn't read the other drives: $err" }
+        Show-OtherHealth
+        Set-BusyChange -1
+    }
     foreach ($m in @($script:Settings.Machines)) {
         $name = [string]$m.Name
         $old = $script:NasResults[$name]
@@ -1497,7 +1605,7 @@ function Initialize-MachineTab {
     $tabs = $script:Ui.Tabs
     foreach ($t in @($tabs.Items | Where-Object { $_.Tag -eq 'machine' })) { $tabs.Items.Remove($t) }
     $script:MachineTabs = @{}
-    foreach ($k in @($script:Issues.Keys)) { if ($k -ne 'This PC') { $script:Issues.Remove($k) } }
+    foreach ($k in @($script:Issues.Keys)) { if ($k -notin 'This PC', 'Other drives') { $script:Issues.Remove($k) } }
     foreach ($k in @($script:NasResults.Keys)) { if (@($script:Settings.Machines | Where-Object { $_.Name -eq $k }).Count -eq 0) { $script:NasResults.Remove($k) } }
     $i = 1
     foreach ($m in @($script:Settings.Machines)) {
@@ -1780,6 +1888,14 @@ function Get-ReportText {
         }
         [void]$sb.AppendLine('')
     }
+    if ($script:OtherResult -and @($script:OtherResult.Drives).Count) {
+        [void]$sb.AppendLine('Other drives')
+        foreach ($d in $script:OtherResult.Drives) {
+            if ($d.Error) { [void]$sb.AppendLine("  $($d.Name)  $($d.Error)"); continue }
+            [void]$sb.AppendLine(('  {0,-24} {1,10} free of {2,10} ({3:N0}%)' -f $d.Name, (Format-Size $d.Free), (Format-Size $d.Size), $(if ($d.Size) { 100 * $d.Free / $d.Size } else { 0 })))
+        }
+        [void]$sb.AppendLine('')
+    }
     foreach ($m in @($script:Settings.Machines)) {
         $st = $script:NasResults[[string]$m.Name]
         [void]$sb.AppendLine("$($m.Name) ($($m.Login))")
@@ -1848,6 +1964,13 @@ $script:SettingsXaml = @'
                 <TextBlock x:Name="TxtTest" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="12" Foreground="{DynamicResource Muted}"/>
             </StackPanel>
         </Grid>
+        <TextBlock Text="Other drives" FontWeight="SemiBold" FontSize="15" Margin="0,20,0,2"/>
+        <TextBlock Text="Shared folders on other PCs, one per line, such as \\OFFICE-PC\D or \\192.168.1.20\media (Windows shares, or Linux shares with Samba). Network drives mapped on this PC are shown by themselves." Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <TextBox x:Name="TxtOther" Height="62" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"/>
+        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+            <Button x:Name="BtnOtherAdd" Content="Add folder..."/>
+            <Button x:Name="BtnOtherRemove" Content="Remove folder..." Margin="8,0,0,0" ToolTip="Pick a folder to take off this list. Nothing on the other PC is touched."/>
+        </StackPanel>
         <TextBlock Text="Warnings and checks" FontWeight="SemiBold" FontSize="15" Margin="0,20,0,10"/>
         <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions>
@@ -1902,7 +2025,27 @@ function Show-Settings {
     $w = New-XamlWindow $script:SettingsXaml
     $w.Owner = $script:Ui.Window; $w.Icon = $script:Ui.Window.Icon
     $f = @{}
-    foreach ($n in 'LstMachines', 'BtnAdd', 'BtnRemove', 'TxtName', 'TxtLogin', 'TxtPort', 'BtnTest', 'TxtTest', 'TxtWarn', 'TxtCrit', 'TxtHdd', 'TxtSsd', 'TxtRefresh', 'CmbTheme', 'TxtError', 'BtnSave') { $f[$n] = $w.FindName($n) }
+    foreach ($n in 'LstMachines', 'BtnAdd', 'BtnRemove', 'TxtName', 'TxtLogin', 'TxtPort', 'BtnTest', 'TxtTest', 'TxtWarn', 'TxtCrit', 'TxtHdd', 'TxtSsd', 'TxtRefresh', 'CmbTheme', 'TxtError', 'BtnSave', 'TxtOther', 'BtnOtherAdd', 'BtnOtherRemove') { $f[$n] = $w.FindName($n) }
+    $f.TxtOther.Text = (@($script:Settings.OtherDrives) -join "`r`n")
+    $f.BtnOtherAdd.Add_Click({
+            Add-Type -AssemblyName System.Windows.Forms
+            $dlg = New-Object Windows.Forms.FolderBrowserDialog
+            $dlg.Description = 'Choose a shared folder on another PC (Network), or a drive'
+            if ($dlg.ShowDialog() -eq 'OK') { $b = $script:SettingsCtx.F.TxtOther; $b.Text = (($b.Text.TrimEnd() + "`r`n" + $dlg.SelectedPath).Trim()) }
+        })
+    $f.BtnOtherRemove.Add_Click({
+            $box = $script:SettingsCtx.F.TxtOther
+            $lines = @($box.Text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+            if (-not $lines.Count) { return }
+            $menu = New-Object Windows.Controls.ContextMenu
+            foreach ($l in $lines) {
+                $mi = New-Object Windows.Controls.MenuItem
+                $mi.Header = $l.Replace('_', '__'); $mi.Tag = $l
+                $mi.Add_Click({ $bx = $script:SettingsCtx.F.TxtOther; $bx.Text = (@($bx.Text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne $this.Tag }) -join "`r`n") })
+                [void]$menu.Items.Add($mi)
+            }
+            $menu.PlacementTarget = $this; $menu.Placement = 'Bottom'; $menu.IsOpen = $true
+        })
     $work = New-Object Collections.ArrayList
     foreach ($m in @($script:Settings.Machines)) { [void]$work.Add(@{ Name = [string]$m.Name; Login = [string]$m.Login; Port = [string]$m.Port }) }
     $script:SettingsCtx = @{ Index = -1; Loading = $false; Work = $work; F = $f; Saved = $false }
@@ -1996,9 +2139,12 @@ else echo '##SMARTROOT'; fi
                 else { $nums[$pair[1]] = $v }
             }
             if ($nums.CritFreePercent -gt $nums.WarnFreePercent) { $err += 'The problem level should be lower than the warning level.' }
+            $others = @($script:SettingsCtx.F.TxtOther.Text -split "`r?`n" | ForEach-Object { $_.Trim().TrimEnd('\') } | Where-Object { $_ } | Select-Object -Unique)
+            foreach ($o in $others) { if ($o -notmatch '^(\\\\[^\\]+\\[^\\]+.*|[A-Za-z]:.*)$') { $err += "Other drives: $o isn't a shared folder (\\PC\Share) or a drive." } }
             if ($err.Count) { $script:SettingsCtx.F.TxtError.Text = ($err | Select-Object -Unique) -join "`n"; return }
             $script:Settings.Machines = @(foreach ($it in $script:SettingsCtx.Work) { [pscustomobject]@{ Name = $it.Name; Login = $it.Login; Port = $it.Port } })
             foreach ($k in $nums.Keys) { $script:Settings.$k = $nums[$k] }
+            $script:Settings.OtherDrives = $others
             $script:Settings.Theme = @('Auto', 'Light', 'Dark')[[Math]::Max(0, $script:SettingsCtx.F.CmbTheme.SelectedIndex)]
             Save-AppSetting
             $script:SettingsCtx.Saved = $true
@@ -2037,6 +2183,8 @@ $script:HelpText = @(
     @('p', 'smartctl has to run as root. Over SSH your user isn''t root, so SMART only shows if sudo lets your user run smartctl without a password. Everything else works without it. To allow it, sign in to the NAS over SSH yourself and run these (sudo -i asks for your DSM password; put your SSH user name in place of YOURUSER):'),
     @('code', "sudo -i`ncommand -v smartctl`necho 'YOURUSER ALL=(root) NOPASSWD: /usr/bin/smartctl' > /etc/sudoers.d/disk-nas-health`nchmod 440 /etc/sudoers.d/disk-nas-health`nexit"),
     @('p', 'Use the path that command -v smartctl printed if it isn''t /usr/bin/smartctl. Settings > Test connection then says "SMART can be read". A big DSM update can remove the file; just add it again.'),
+    @('h', 'Other drives'),
+    @('p', 'Other drives shows how full the drives elsewhere are: network drives mapped on this PC (they appear by themselves) and shared folders on other PCs that you list in Settings, such as \\OFFICE-PC\D or \\192.168.1.20\media. Windows PCs share a drive with Properties > Sharing; Linux machines can share with Samba. Only free space is shown, as the disks belong to the other PC: for its disk health, run Disk and NAS Health there, or add it as a machine over SSH like the NAS. A drive that can''t be reached shows as Offline.'),
     @('h', 'Biggest folders'),
     @('p', 'Pick This PC or a NAS, type or browse to a folder and press Scan. You get its folders, biggest first, with their share of the total, and (on this PC) the largest files underneath. Double-click a folder to go into it, Up or Backspace to go back. Right-click for Open in Explorer and Copy path.'),
     @('p', 'This PC: one scan lists every folder underneath and adds up the file sizes, so going in and out afterwards is instant (down to five levels; deeper folders are scanned when you open them). It only reads folder listings, never the files. Junctions and links are skipped so nothing is counted twice, and OneDrive files that are online-only count as 0, because they use no space. Folders Windows won''t let you read (System Volume Information) are skipped; running as administrator reads more of them.'),
@@ -2177,6 +2325,9 @@ $mainXaml = @'
             <TabItem x:Name="TabPc">
                 <ScrollViewer x:Name="SvPc" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="PanelPc" Margin="4,12,4,12"/></ScrollViewer>
             </TabItem>
+            <TabItem x:Name="TabOther">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="PanelOther" Margin="4,12,4,12"/></ScrollViewer>
+            </TabItem>
             <TabItem x:Name="TabFolders" Header="Biggest folders">
                 <Grid Margin="4,12,12,12">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -2298,7 +2449,7 @@ try {
     $window = New-XamlWindow $mainXaml
     $script:Ui = @{ Window = $window }
     foreach ($n in 'ImgLogo', 'BtnAdmin', 'BtnRefresh', 'BtnCopy', 'BtnSettings', 'BtnHelp', 'BtnAbout', 'TxtTitle', 'DotSummary', 'TxtSummary', 'TxtStatus',
-        'Tabs', 'TabPc', 'SvPc', 'PanelPc', 'TabFolders', 'CmbWhere', 'BtnBrowse', 'BtnUp', 'BtnScan', 'BtnStop', 'TxtPath', 'TxtScan', 'LstFolders', 'LstFiles',
+        'Tabs', 'TabPc', 'SvPc', 'PanelPc', 'TabOther', 'PanelOther', 'TabFolders', 'CmbWhere', 'BtnBrowse', 'BtnUp', 'BtnScan', 'BtnStop', 'TxtPath', 'TxtScan', 'LstFolders', 'LstFiles',
         'TxtFilesTitle', 'MnuOpen', 'MnuExplorer', 'MnuCopyFolder', 'MnuShowFile', 'MnuCopyFile') {
         $script:Ui[$n] = $window.FindName($n)
     }
@@ -2312,6 +2463,9 @@ try {
     $script:PcHeader = New-TabHeader 'This PC'
     $u.TabPc.Header = $script:PcHeader.Header
     [Windows.Automation.AutomationProperties]::SetName($u.TabPc, 'This PC')
+    $script:OtherHeader = New-TabHeader 'Other drives'
+    $u.TabOther.Header = $script:OtherHeader.Header
+    [Windows.Automation.AutomationProperties]::SetName($u.TabOther, 'Other drives')
     Restore-WindowPlace $window
 
     # Header buttons

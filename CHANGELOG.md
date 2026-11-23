@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.02] - 2026-11-23
+### Added
+- **Other drives** tab beside NAS: how full the drives elsewhere are. Network drives mapped on this PC appear by
+  themselves (drives that are shares of one disk on the same machine share a card), and shared folders on other
+  PCs can be listed in Settings (such as `\\OFFICE-PC\D`; Windows shares, or Linux with Samba), with
+  **Add folder...** and **Remove folder...**. Free space only, with the same warning levels; one that can't be
+  reached shows as Offline. Copy report includes them.
+
 ## [1.01] - 2026-11-17
 ### Changed
 - The main script is now `Disk-and-NAS-Health.ps1`, matching the folder name.

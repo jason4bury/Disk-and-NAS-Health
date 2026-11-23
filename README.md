@@ -4,9 +4,9 @@
 
 # Disk and NAS Health
 
-Free space, drive health and the biggest folders, for this PC and your NAS, in one window.
+Free space, drive health and the biggest folders, for this PC, your NAS and other drives, in one window.
 
-![Version](https://img.shields.io/badge/version-v1.01-blue) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6) ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE) ![Licence](https://img.shields.io/badge/licence-MIT-green) ![Last commit](https://img.shields.io/github/last-commit/jason4bury/Disk-and-NAS-Health)
+![Version](https://img.shields.io/badge/version-v1.02-blue) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6) ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE) ![Licence](https://img.shields.io/badge/licence-MIT-green) ![Last commit](https://img.shields.io/github/last-commit/jason4bury/Disk-and-NAS-Health)
 
 ## ✨ Features
 
@@ -20,6 +20,7 @@ Disk and NAS Health is a PowerShell/WPF tool that checks every drive on your PC 
   - free space on each volume,
   - RAID state of every array: healthy, degraded, rebuilding (with progress and time left) or data scrubbing,
   - every disk's SMART health from `smartctl`: overall result, temperature, power-on hours, reallocated, pending and uncorrectable sectors and cable (CRC) errors, or wear and media errors for NVMe.
+- **Other drives**: a tab beside NAS showing how full the drives elsewhere are: network drives mapped on this PC (shares of one disk on the same machine share a card) and shared folders on other PCs listed in Settings, such as `\\OFFICE-PC\D` (Windows shares, or Linux with Samba). Free space only; a drive that can't be reached shows as Offline.
 - **Biggest folders**: pick This PC or a NAS and a folder, press **Scan**, and see its folders biggest first with their share of the total, plus the largest files underneath (this PC). Double-click to go in, **Up** or Backspace to come back, **Stop** to end early, right-click for **Open in Explorer** and **Copy path**.
   - This PC: a fast scanner reads folder listings only (never the files), keeps five levels so going in and out is instant, skips junctions so nothing is counted twice, and counts OneDrive online-only files as 0 because they use no space.
   - NAS: measured with `du` over SSH, one level at a time, with a note of any folders the SSH user can't read.
@@ -42,7 +43,7 @@ Disk and NAS Health is a PowerShell/WPF tool that checks every drive on your PC 
 
 ## 📦 Installation
 
-1. Download `Disk-and-NAS-Health-v1.01.zip` from the [latest release](../../releases/latest).
+1. Download `Disk-and-NAS-Health-v1.02.zip` from the [latest release](../../releases/latest).
 2. Right-click the zip, choose **Properties**, tick **Unblock** and click OK, *before* extracting it. (Or, after extracting, run `Get-ChildItem -Recurse 'Disk and NAS Health v1.01' | Unblock-File` in PowerShell.) Files from the internet carry Windows' Mark of the Web, which makes Windows warn about or block scripts.
 3. Extract it anywhere. You get a `Disk and NAS Health v1.01` folder.
 4. Double-click **Disk and NAS Health.cmd** in that folder. It makes a **Disk and NAS Health** shortcut in the folder and in the Start menu, then starts it.
